@@ -1,15 +1,16 @@
 import requests
 import json
+import csv
+import pandas as pd
 
-
-def make_request(offset):
+def make_request(offset, slug, search_location):
 
     url = "https://www.realtor.com/api/v1/rdc_search_srp?client_id=rdc-search-for-sale-search&schema=vesta"
 
     payload = json.dumps({
     "query": "\n  query ConsumerSearchQuery(\n    $query: HomeSearchCriteria!\n    $limit: Int\n    $offset: Int\n    $search_promotion: SearchPromotionInput\n    $sort: [SearchAPISort]\n    $sort_type: SearchSortType\n    $client_data: JSON\n    $bucket: SearchAPIBucket\n  ) {\n    home_search: home_search(\n      query: $query\n      sort: $sort\n      limit: $limit\n      offset: $offset\n      sort_type: $sort_type\n      client_data: $client_data\n      bucket: $bucket\n      search_promotion: $search_promotion\n    ) {\n      count\n      total\n      search_promotion {\n        name\n        slots\n        promoted_properties {\n          id\n          from_other_page\n        }\n      }\n      properties: results {\n        property_id\n        list_price\n        search_promotions {\n          name\n          asset_id\n        }\n        primary_photo(https: true) {\n          href\n        }\n        rent_to_own {\n          right_to_purchase\n          rent\n        }\n        listing_id\n        matterport\n        virtual_tours {\n          href\n          type\n        }\n        status\n        products {\n          products\n          brand_name\n        }\n        source {\n          id\n          type\n          spec_id\n          plan_id\n          agents {\n            office_name\n          }\n        }\n        lead_attributes {\n          show_contact_an_agent\n          opcity_lead_attributes {\n            cashback_enabled\n            flip_the_market_enabled\n          }\n          lead_type\n          ready_connect_mortgage {\n            show_contact_a_lender\n            show_veterans_united\n          }\n        }\n        community {\n          description {\n            name\n          }\n          property_id\n          permalink\n          advertisers {\n            office {\n              hours\n              phones {\n                type\n                number\n                primary\n                trackable\n              }\n            }\n          }\n          promotions {\n            description\n            href\n            headline\n          }\n        }\n        permalink\n        price_reduced_amount\n        description {\n          name\n          beds\n          baths_consolidated\n          sqft\n          lot_sqft\n          baths_max\n          baths_min\n          beds_min\n          beds_max\n          sqft_min\n          sqft_max\n          type\n          sub_type\n          sold_price\n          sold_date\n        }\n        location {\n          street_view_url\n          address {\n            line\n            postal_code\n            state\n            state_code\n            city\n            coordinate {\n              lat\n              lon\n            }\n          }\n          county {\n            name\n            fips_code\n          }\n        }\n        open_houses {\n          start_date\n          end_date\n        }\n        branding {\n          type\n          name\n          photo\n        }\n        flags {\n          is_coming_soon\n          is_new_listing(days: 14)\n          is_price_reduced(days: 30)\n          is_foreclosure\n          is_new_construction\n          is_pending\n          is_contingent\n        }\n        list_date\n        photos(limit: 2, https: true) {\n          href\n        }\n        advertisers {\n          type\n          builder {\n            name\n            href\n            logo\n          }\n        }\n      }\n    }\n  }\n",
     "variables": {
-        "geoSupportedSlug": "10016",
+        "geoSupportedSlug": slug,
         "query": {
         "primary": True,
         "status": [
@@ -17,7 +18,7 @@ def make_request(offset):
             "ready_to_build"
         ],
         "search_location": {
-            "location": "10016, New York, NY"
+            "location": search_location
         }
         },
         "client_data": {
@@ -77,3 +78,152 @@ def make_request(offset):
         return data['data']['home_search']['properties'], total
     except:
         return None 
+
+
+def parse_data(properties_):
+    records_extracted = 0
+    output_file_path = 'data.csv'
+    with open(output_file_path, 'a+', newline='', encoding="utf-8") as file_w:
+        headers = ['Title', 'ActualPrice', 'Status', 'MinPrice', 'Description', 'Street', 'PostalCode', 'State', 'StateCode', 'City', 'Latitude', 'Longitude', 'Url']
+        writer = csv.DictWriter(file_w, fieldnames=headers)
+
+        for property_ in properties_:
+            final_data = {}
+            try:
+                title = property_['permalink']
+                final_data['Title'] = title
+            except:
+                final_data['Title'] = None
+            
+            try:
+                actual_price = property_['list_price']
+                final_data['ActualPrice'] = '$' + str(actual_price)
+            except:
+                final_data['ActualPrice'] = None
+                
+            try:
+                status = property_['status']
+                final_data['Status'] = status
+            except:
+                final_data['Status'] = None
+                
+            try:
+                min_price = property_['price_reduced_amount']
+                if min_price:
+                    final_data['MinPrice'] = '$' + str(min_price)
+                else:
+                    final_data['MinPrice'] = '$' + min_price
+            except:
+                final_data['MinPrice'] = None
+            
+            try:
+                desc = []
+                for key, val in property_['description'].items():
+                    try:
+                        row = key + ": " + val
+                        desc.append(row)
+                    except:
+                        pass
+                desc = ', '.join(desc)
+                final_data['Description'] = desc
+            except:
+                final_data['Description'] = None
+                
+            try:
+                add = property_['location']['address']
+                
+                try:
+                    street = add['line']
+                    final_data['Street'] = street
+                except:
+                    final_data['Street'] = None
+
+                try:
+                    postal_code = add['postal_code']
+                    final_data['PostalCode'] = postal_code
+                except:
+                    final_data['PostalCode'] = None
+
+                try:
+                    state = add['state']
+                    final_data['State'] = state
+                except:
+                    final_data['State'] = None
+
+                try:
+                    state_code = add['state_code']
+                    final_data['StateCode'] = state_code
+                except:
+                    final_data['StateCode'] = None
+
+                try:
+                    city = add['city']
+                    final_data['City'] = city
+                except:
+                    final_data['City'] = None
+
+                try:
+                    lat = add['coordinate']['lat']
+                    final_data['Latitude'] = lat
+                except:
+                    final_data['Latitude'] = None
+
+                try:
+                    lon = add['coordinate']['lon']
+                    final_data['Longitude'] = lon
+                except:
+                    final_data['Longitude'] = None
+
+            except:
+                final_data['Street'] = None
+                final_data['PostalCode'] = None
+                final_data['State'] = None
+                final_data['StateCode'] = None
+                final_data['City'] = None
+                final_data['Latitude'] = None
+                final_data['Longitude'] = None
+                
+            try:
+                url = property_['permalink']
+                final_data['Url'] = 'https://www.realtor.com/realestateandhomes-detail/' +url
+            except:
+                final_data['Url'] = None
+
+            writer.writerow(final_data)
+
+            records_extracted +=1
+
+            # print(final_data)
+            # print(final_data.keys())
+    return records_extracted
+
+
+if __name__ == "__main__":
+
+    loations = [['10016', '10016, New York, NY'],      ## list of location 
+                ['90650', '90650, Norwalk, CA'],
+                ['60629', '60629, Chicago, IL'],
+                ['77433', '77433, Cypress, TX'],
+                ['92154', '92154, San Diego, CA']
+                
+                ]
+
+    output_file_path = 'data.csv'
+    with open(output_file_path, 'a+', newline='', encoding="utf-8") as file_w:
+        headers = ['Title', 'ActualPrice', 'Status', 'MinPrice', 'Description', 'Street', 'PostalCode', 'State', 'StateCode', 'City', 'Latitude', 'Longitude', 'Url']
+        writer = csv.DictWriter(file_w, fieldnames=headers)
+        writer.writeheader()
+    
+    for i in loations:
+        offset, records, total = 0, 0, 0
+        while records<= total:
+            data, total = make_request(offset, i[0], i[1])
+            records += parse_data(data)
+            offset+=42
+            print(records, total)
+
+    ### removing duplicate ### 
+    df = pd.read_csv(output_file_path, dtype = str)
+    df = df.dropna(axis = 1)
+    df = df.drop_duplicates(keep='first')
+    df.to_csv(output_file_path, index=False)
