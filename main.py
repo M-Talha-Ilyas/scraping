@@ -200,7 +200,7 @@ def parse_data(properties_):
 
 if __name__ == "__main__":
 
-    loations = [['10016', '10016, New York, NY'],      ## list of location 
+    loations = [['10016', '10016, New York, NY'],      ## list of locations 
                 ['90650', '90650, Norwalk, CA'],
                 ['60629', '60629, Chicago, IL'],
                 ['77433', '77433, Cypress, TX'],
@@ -224,6 +224,5 @@ if __name__ == "__main__":
 
     ### removing duplicate ### 
     df = pd.read_csv(output_file_path, dtype = str)
-    df = df.dropna(axis = 1)
     df = df.drop_duplicates(keep='first')
     df.to_csv(output_file_path, index=False)
